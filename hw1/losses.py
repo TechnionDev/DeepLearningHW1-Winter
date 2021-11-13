@@ -52,12 +52,19 @@ class SVMHingeLoss(ClassifierLoss):
 
         loss = None
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        s_yi = torch.gather(input=x_scores, dim=1, index=torch.LongTensor(y).view((y.shape[0], 1)))
+        M = x_scores - s_yi + torch.full(x_scores.shape, self.delta)
+        M = torch.maximum(M, torch.full(M.shape, 0))
+        loss = torch.mean(M.sum(1)) - self.delta
         # ========================
 
         # TODO: Save what you need for gradient calculation in self.grad_ctx
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        self.grad_ctx["M"] = M
+        self.grad_ctx["x"] = x
+        self.grad_ctx["y"] = y
+        self.grad_ctx["s_yi_index"] = [torch.LongTensor(list(range(x_scores.shape[0]))), y]
+        self.grad_ctx["x_scores"] = x_scores
         # ========================
 
         return loss
@@ -75,7 +82,11 @@ class SVMHingeLoss(ClassifierLoss):
 
         grad = None
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        G = (self.grad_ctx["M"] > 0).float()
+        G[self.grad_ctx["s_yi_index"]] = 0
+        num_samples_t = torch.LongTensor(list(range(self.grad_ctx["x_scores"].shape[0])))
+        G[num_samples_t, self.grad_ctx["y"]] = -(G.sum(1)).T
+        grad = (self.grad_ctx["x"].T @ G)/num_samples_t.shape[0]
         # ========================
 
         return grad
