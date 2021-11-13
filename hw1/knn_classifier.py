@@ -31,7 +31,14 @@ class KNNClassifier(object):
         #     y_train.
         #  2. Save the number of classes as n_classes.
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
+        y_train = torch.empty(len(dl_train.dataset), 1)
+        x_train = torch.empty(len(dl_train.dataset), dl_train.dataset[0][0].shape[0])
+        i = 0
+        for img, label in dl_train.dataset:
+            x_train[i] = img
+            y_train[i] = label
+            i += 1
+        n_classes = torch.unique(y_train).shape[0]
         # ========================
 
         self.x_train = x_train
@@ -63,7 +70,9 @@ class KNNClassifier(object):
             #  - Set y_pred[i] to the most common class among them
             #  - Don't use an explicit loop.
             # ====== YOUR CODE: ======
-            raise NotImplementedError()
+            knn_nearest = torch.topk(dist_matrix.T[i], self.k, largest=False)
+            knn_class = self.y_train[knn_nearest[1].T]
+            y_pred[i] = torch.mode(knn_class, dim=0)[0]
             # ========================
 
         return y_pred
@@ -85,16 +94,18 @@ def l2_dist(x1: Tensor, x2: Tensor):
     #  - Use only basic pytorch tensor operations, no external code.
     #  - Solution must be a fully vectorized implementation, i.e. use NO
     #    explicit loops (yes, list comprehensions are also explicit loops).
-    #    Hint: Open the expression (a-b)^2. Use broadcasting semantics to
+    #    Hint: Open the expression (a-b)^2. Use broadcasting semantics to a^2 -2ab +b^2
+
     #    combine the three terms efficiently.
     #  - Don't use torch.cdist
 
     dists = None
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
     # ========================
-
-    return dists
+    x1_2 = (x1 ** 2).sum(dim=1, keepdim=True)
+    x2_2 = (x2 ** 2).sum(dim=1, keepdim=True)
+    matrix_mul = 2 * (x1 @ x2.T)
+    return torch.sqrt(x1_2 + x2_2.T - matrix_mul)
 
 
 def accuracy(y: Tensor, y_pred: Tensor):
@@ -111,7 +122,8 @@ def accuracy(y: Tensor, y_pred: Tensor):
     # TODO: Calculate prediction accuracy. Don't use an explicit loop.
     accuracy = None
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    diff = y - y_pred
+    accuracy = (y.shape[0] - torch.count_nonzero(diff)) / y.shape[0]
     # ========================
 
     return accuracy
@@ -133,7 +145,6 @@ def find_best_k(ds_train: Dataset, k_choices, num_folds):
 
     for i, k in enumerate(k_choices):
         model = KNNClassifier(k)
-
         # TODO:
         #  Train model num_folds times with different train/val data.
         #  Don't use any third-party libraries.
@@ -142,8 +153,21 @@ def find_best_k(ds_train: Dataset, k_choices, num_folds):
         #  random split each iteration), or implement something else.
 
         # ====== YOUR CODE: ======
-        raise NotImplementedError()
-        # ========================
+        range_points = list(range(len(ds_train)))
+        batch_size = int(np.floor(len(ds_train) / num_folds))
+        accuracies.append([])
+        for j in range(num_folds):
+            dl_valid = DataLoader(dataset=ds_train, batch_size=len(range_points[j * batch_size:(j + 1) * batch_size]),
+                                  sampler=torch.utils.data.SubsetRandomSampler(
+                                      range_points[j * batch_size:(j + 1) * batch_size]))
+            train_loader = DataLoader(dataset=ds_train, batch_size=len(
+                range_points[:j * batch_size] + range_points[(j + 1) * batch_size:]),
+                                      sampler=torch.utils.data.SubsetRandomSampler(
+                                          range_points[:j * batch_size] + range_points[(j + 1) * batch_size:]))
+            model.train(train_loader)
+            y_pred = model.predict(dataloader_utils.flatten(dl_valid)[0])
+            accuracies[i].append(accuracy(y_pred, dataloader_utils.flatten(dl_valid)[1]))
+    # ========================
 
     best_k_idx = np.argmax([np.mean(acc) for acc in accuracies])
     best_k = k_choices[best_k_idx]
