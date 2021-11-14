@@ -1,5 +1,6 @@
 import numpy as np
 import sklearn
+import torch
 from pandas import DataFrame
 from typing import List
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin
@@ -62,7 +63,7 @@ class LinearRegressor(BaseEstimator, RegressorMixin):
 
 
 def fit_predict_dataframe(
-    model, df: DataFrame, target_name: str, feature_names: List[str] = None,
+        model, df: DataFrame, target_name: str, feature_names: List[str] = None,
 ):
     """
     Calculates model predictions on a dataframe, optionally with only a subset of
@@ -163,7 +164,34 @@ def top_correlated_features(df: DataFrame, target_feature, n=5):
     # TODO: Calculate correlations with target and sort features by it
 
     # ====== YOUR CODE: ======
-    raise NotImplementedError()
+    target_feature_index_mu = 0
+    mu = []
+    for index, name in enumerate(df.columns):
+        mu.append(df[name].mean())
+        if name == target_feature:
+            target_feature_index_mu = index
+
+    res = []
+    for index, name in enumerate(df.columns):
+        if name == target_feature:
+            continue
+        top_sum = 0
+        bottom_sum_x = 0
+        bottom_sum_y = 0
+        for row_num, j in df.iterrows():
+            x = (df[name][row_num] - mu[index])
+            y = (df[target_feature][row_num] - mu[target_feature_index_mu])
+            top_sum += x * y
+            bottom_sum_x += x ** 2
+            bottom_sum_y += y ** 2
+        bottom_sum_y = np.sqrt(bottom_sum_y)
+        bottom_sum_x = np.sqrt(bottom_sum_x)
+        res.append(np.abs(top_sum / (bottom_sum_x * bottom_sum_y)))
+    top_n_corr, top_n_features_index = torch.topk(torch.Tensor(res), n)
+    top_n_corr = top_n_corr.tolist()
+    top_n_features = []
+    for index in top_n_features_index:
+        top_n_features.append(df.columns[index])
     # ========================
 
     return top_n_features, top_n_corr
@@ -200,7 +228,7 @@ def r2_score(y: np.ndarray, y_pred: np.ndarray):
 
 
 def cv_best_hyperparams(
-    model: BaseEstimator, X, y, k_folds, degree_range, lambda_range
+        model: BaseEstimator, X, y, k_folds, degree_range, lambda_range
 ):
     """
     Cross-validate to find best hyperparameters with k-fold CV.
